@@ -1,0 +1,55 @@
+---
+# tasks file for redisprovision
+- name: redis nodeları için docker volume oluştur
+  docker_volume:
+    name: "{{ item }}_data"
+    state: present
+  loop: "{{ redis_nodes }}"
+
+- name: docker network olustur
+  community.docker.docker_network:
+    name: redis_network
+    state: present
+
+
+- name: Redis node konternırları olusrutuluyor
+  docker_container:
+    networks:
+      - name: redis_network
+    name: "{{ item }}"
+    image: custom-redis:latest
+    volumes:
+      - "{{ item }}_data:/data"
+    state: started
+  loop: "{{ redis_nodes }}"
+
+- name: Nodelarin ip bilgileri cekiliyor
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  register: redis_node_info
+  loop: "{{ redis_nodes }}"
+
+
+- name: node ip bilgisi listesi olusturuluyor
+  set_fact:
+     redis_node_ips: "{{ redis_node_info.results | map(attribute='container.NetworkSettings.Networks.redis_network.IPAddress') }}"
+
+- name: IP'leri goster
+  debug:
+    var: redis_node_ips
+
+- name: ip bilgisi listesi olusturuluyor
+  set_fact:
+     redis_ips: "{{ redis_node_info.results | map(attribute='container.NetworkSettings.Networks.redis_network.IPAddress') | join(':6379 ') }}:6379"
+
+
+
+- name: redis clusterı ayağa kaldırılıyor
+  shell: |
+     docker exec {{ redis_nodes[0] }} redis-cli --cluster create \
+     {{ redis_ips }} \
+     --cluster-replicas 0 --cluster-yes
+  ignore_errors: true
+
+
+

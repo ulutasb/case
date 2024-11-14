@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s  
+scrape_configs:
+  ## config for the multiple Redis targets that the exporter will scrape
+  - job_name: 'redis_exporter_targets'
+    static_configs:
+      - targets:
+{% for ip_degisken in redis_node_ips %}
+        - redis://{{ ip_degisken }}:6379
+{% endfor %}
+    metrics_path: /scrape
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: {{ redis_exporter_ip }}:9121
+
+

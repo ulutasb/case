@@ -1,0 +1,83 @@
+---
+# tasks file for monitorredis
+- name: redis nodeları için docker volume oluştur
+  docker_volume:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - redis_exporter_data
+    - prometheus_data
+    - grafana_data
+
+- name: Redis Exporter için Docker konteyneri oluştur
+  docker_container:
+    name: redis-exporter    
+    networks:
+      - name: redis_network
+    image: oliver006/redis_exporter
+    state: started
+    restart_policy: unless-stopped
+    volumes:
+      - redis_exporter_data:/etc/redis_exporter
+
+
+- name: redis node exporter bilgisi cekiliyor
+  community.docker.docker_container_info:
+    name: redis-exporter
+  register: redis_exporter_info
+
+- name: ip bilgisi listesi olusturuluyor
+  set_fact:
+     redis_exporter_ip: "{{ redis_exporter_info.container.NetworkSettings.Networks.redis_network.IPAddress }}"
+
+- name: redis exporter ip goster
+  debug:
+    msg: "{{redis_exporter_ip}}"
+
+
+- name: copy prometheus file into remote host
+  template:
+   src: prometheus.yml.j2
+   dest: /opt/prometheus.yml
+
+
+- name: Prometheus için Docker konteyneri oluştur
+  docker_container:
+    networks:
+      - name: redis_network
+    name: prometheus
+    image: prom/prometheus
+    state: started
+    restart_policy: unless-stopped
+    volumes:
+          - /opt/prometheus.yml:/etc/prometheus/prometheus.yml
+          - prometheus_data:/prometheus
+
+
+- name: SSL sertifikası oluşturma dizinini oluştur
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+       - /opt/sslcerts
+
+
+- name: Grafana için Docker konteyneri oluştur
+  docker_container:
+    name: grafana    
+    networks:
+      - name: redis_network
+    image: grafana/grafana
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "3000:3000"
+    volumes:
+          - grafana_data:/var/lib/grafana
+          - /opt/sslcerts:/opt/sslcerts
+    env:
+      GF_SERVER_HTTP_PORT=3000
+      GF_SERVER_PROTOCOL=https
+      GF_SERVER_CERT_KEY=/opt/sslcerts/private.key
+      GF_SERVER_CERT_FILE=/opt/sslcerts/certificate.crt
+      GF_SERVER_ROOT_URL=https://178.128.168.126:3000

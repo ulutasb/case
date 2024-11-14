@@ -1,0 +1,49 @@
+---
+# tasks file for createredisimage
+- name: Copy redis.conf to target host
+  copy:
+    src: files/redis.conf
+    dest: /tmp/redis.conf
+
+
+- name: Copy redis.conf to target host
+  template:
+    src: Dockerfile.j2
+    dest: /tmp/Dockerfile
+
+
+
+- name: Build custom Redis Docker image
+  docker_image:
+    name: custom-redis
+    tag: latest
+    source: build
+    build:
+     path: /tmp
+
+- name: Remove Dockerfile and redis.conf from target host
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /tmp/Dockerfile
+    - /tmp/redis.conf
+
+- name: Run custom Redis container to verify the image
+  docker_container:
+    name: custom_redis_test
+    image: custom-redis:latest
+    state: started
+    ports:
+      - "6379:6379"
+  register: container_result
+
+- name: container_result
+  debug:
+    msg: "{{ container_result }}"
+
+- name: Stop and remove the test container
+  docker_container:
+    name: custom_redis_test
+    state: absent
+  when: container_result.container.State.Running | bool

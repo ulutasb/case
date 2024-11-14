@@ -1,0 +1,18 @@
+# Redis imajını temel alarak kendi özel imajımızı oluşturuyoruz
+FROM redis:latest
+
+# İsteğe bağlı olarak, özel Redis ayar dosyasını ekleyin
+COPY redis.conf /usr/local/etc/redis/redis.conf
+
+# Gerekli paketleri yükleyin: 'yes' komutu, OpenSSH server ve sudo
+RUN apt-get update && \
+    apt-get install -y yes openssh-server sudo && \
+    mkdir /var/run/sshd
+
+# SSH bağlantısı için linuxadmin kullanıcısını oluştur ve parola ayarla
+RUN useradd -m -s /bin/bash linuxadmin && \
+    echo '{{ sshuser }}:{{ sshuserpasswd }}' | chpasswd && \
+    usermod -aG sudo linuxadmin
+
+# SSH servisini başlat ve Redis'i özel konfigürasyonla çalıştır
+CMD service ssh start && redis-server /usr/local/etc/redis/redis.conf

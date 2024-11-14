@@ -1,0 +1,16 @@
+---
+- name: Redis Cluster Setup
+  hosts: localhost
+  become: true
+  vars_files:
+    - secret.yml
+  vars:
+   ansible_python_interpreter: /usr/bin/python3
+   redis_nodes:
+     - redis_node1
+     - redis_node2
+     - redis_node3
+  roles:
+    - createredisimage
+    - redisprovision
+    - monitorredis
